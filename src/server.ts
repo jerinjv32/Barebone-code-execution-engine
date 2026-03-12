@@ -5,11 +5,12 @@ import { spawn } from 'child_process'
 
 const filePath = path.resolve(__dirname, '../lang/script.py')
 const app = express()
-console.log(filePath)
 app.use(express.json())
 
 app.post('/execute', (req: Request, res: Response) => {
-  const { code } = req.body
+  const { code, input } = req.body
+  let newInput = input.replaceAll(',', '\n')
+
   fs.writeFile(filePath, code, (error) => {
     if (error) {
       console.error('Error:', error)
@@ -17,6 +18,13 @@ app.post('/execute', (req: Request, res: Response) => {
     else {
       try {
         const pyProg = spawn('python', [filePath])
+
+        const timeOut = setTimeout(() => {
+          pyProg.kill("SIGKILL")
+          console.log('Execution stopped. Timeout')
+        }, 10000)
+
+
         pyProg.stdout.on('data', (data) => {
           console.log(data.toString())
           res.write(data)
@@ -27,6 +35,12 @@ app.post('/execute', (req: Request, res: Response) => {
           res.write(data)
           res.end()
         })
+
+        pyProg.on('close', (code) => {
+          clearTimeout(timeOut)
+          console.log('Program exited with code:', code);
+        })
+        pyProg.stdin.write(newInput + '\n')
       }
       catch (error) {
         console.error("Error:", error)
